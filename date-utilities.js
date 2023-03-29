@@ -55,14 +55,13 @@ export function formatDateToCA(inputDate) {
     }
     // Unix time
     if (typeof inputDate === 'number') {
-        const date = new Date(inputDate);
-        // return date;
+        const date = new Date(inputDate * 1000);
         return `${date.getFullYear()}-${padNumberWithZero(date.getMonth() + 1)}-${padNumberWithZero(date.getDate())}`;
     }
     else {
         return `${inputDate.getFullYear()}-${padNumberWithZero(inputDate.getMonth() + 1)}-${padNumberWithZero(inputDate.getDate())}`;
     }
-    
+
     function padNumberWithZero(number) {
         if (number <= 9) {
             return `0${Number(number)}`;
