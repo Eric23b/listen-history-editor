@@ -132,6 +132,19 @@ body{
     padding: 0;
 }
 
+
+table{
+	border-spacing:0;
+	border-collapse: collapse;
+}
+td, th{
+	padding: 0.25rem 1rem;
+	background: transparent;
+}
+tr:hover{
+	background-color: var(--theme-shadow);
+}
+
 main{
     position: absolute;
     inset: 0;
@@ -139,6 +152,7 @@ main{
     display: flex;
     flex-direction: column;
     align-items: center;
+	gap: 1rem;
 }
 
 
