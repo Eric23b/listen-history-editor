@@ -1,12 +1,12 @@
-import {
-    showCalendarPreviewDialog,
-} from './dialogs.js';
+// import {
+//     showCalendarPreviewDialog,
+// } from './dialogs.js';
 
-import {
-    formatDateToCA,
-} from './date-utilities.js';
+// import {
+//     formatDateToCA,
+// } from './date-utilities.js';
 
-let history = [];
+// let history = [];
 
 const mainContainer = document.querySelector('.main');
 
@@ -23,22 +23,77 @@ function loadHistoryJSON(event) {
     async function onReaderLoad(event){
         const jsonFileDate = JSON.parse(event.target.result);
 
+        const cleanData = [];
+        const cleanerData = [];
+
         for (const property of jsonFileDate) {
-            const date = formatDateToCA(property.listened_at);
-            const time = (new Date(1291495980)).toLocaleTimeString('us-en', {hour12: true});
+            const listened_at = property.listened_at;
+            const track_name = property.track_metadata.track_name;
+            const release_name = property.track_metadata.release_name;
+            const artist_name = property.track_metadata.artist_name;
+            const duration_ms = property.track_metadata.duration_ms;
+            const media_player = property.track_metadata.additional_info.media_player || "Unknown";
+            const media_player_version = property.track_metadata.additional_info.media_player_version || "Unknown";
 
-            const trackName = property.track_metadata.track_name || "Unknown";
-            const releaseName = property.track_metadata.release_name || "Unknown";
-            const artistName = property.track_metadata.artist_name || "Unknown";
-            const duration = msToTime(property.track_metadata.duration_ms || 0);
+            const newEntryHash = String(
+                                    track_name.toLowerCase() +
+                                    release_name.toLowerCase() +
+                                    artist_name.toLowerCase() +
+                                    String(duration_ms).toLowerCase()
+                                 ).replaceAll(" ", "");
 
-            const player = property.track_metadata.additional_info.media_player || "Unknown";
-            const playerVersion = property.track_metadata.additional_info.media_player_version || "Unknown";
-            const tooltip = `Artist: ${artistName}\nDate: ${date}\nTime: ${time}\nDuration: ${duration}\nPlayer: ${player}\nPlayer version: ${playerVersion}`;
-            history.push({name: trackName, tooltip, date, time, player, playerVersion, trackName, releaseName, artistName, duration})
+            const newEntry = {
+                              hash: newEntryHash,
+                              listened_at: [listened_at],
+                              track_metadata: {
+                                  track_name: track_name,
+                                  release_name: release_name,
+                                  artist_name: artist_name,
+                                  duration_ms: duration_ms,
+                                  additional_info: {
+                                      media_player: media_player,
+                                      media_player_version: media_player_version,
+                                  }
+                              },
+                            }
+
+            // Add first entry
+            if (cleanData.length === 0) cleanData.push(newEntry);
+            
+            // Find entry index if it has been added
+            let foundIndex = -1;
+            cleanData.forEach((entry, index) => {
+                if (entry.hash == newEntryHash) {
+                    foundIndex = index;
+                }
+            });
+
+            // Add entry if it has been yet added
+            if (foundIndex == -1) {
+                cleanData.push(newEntry);
+            }
+            // Added listen time to listen_at array
+            else {
+                cleanData[foundIndex].listened_at.push(listened_at);
+            }
         }
 
-        showCalendarPreviewDialog("Calendar", history, false, true);
+        // Remove hash
+        for (const entry of cleanData) delete entry.hash;
+
+        // Add timesPlayed
+        for (const entry of cleanData) entry.timesPlayed = entry.listened_at.length;
+
+        // Add totalPlayTime_ms
+        for (const entry of cleanData) entry.totalPlayTime_ms = entry.listened_at.length * entry.track_metadata.duration_ms;
+
+        // Add totalPlayTime
+        for (const entry of cleanData) entry.totalPlayTime = msToTime(entry.totalPlayTime_ms);
+
+        console.log(cleanData);
+
+        const date = (new Date()).toLocaleDateString('ca-en');
+        // saveTextFile(JSON.stringify(cleanData, null, 1), `Listen History ${date}`, "json");
    }
 }
 
@@ -53,8 +108,14 @@ function msToTime(s) {
     return (hrs ? hrs + ":" : "") + mins + ":" + secs;
 }
 
-// console.log((new Date()).getTime());
-// console.log((new Date(1291495980)).toLocaleDateString('CA-EN'));
-// console.log(formatDateToCA(1291842056));
-// 1680100270
-// 1680097553322
+
+function saveTextFile(data, fileName, fileType) {
+    let jsonData = new Blob([data], {type: `text/${fileType}`});  
+    let jsonURL = URL.createObjectURL(jsonData);
+
+    let hiddenElement = document.createElement('a');
+    hiddenElement.href = jsonURL;
+    hiddenElement.target = '_blank';
+    hiddenElement.download = `${fileName}.${fileType}`;
+    hiddenElement.click();
+}
