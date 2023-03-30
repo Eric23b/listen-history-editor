@@ -93,7 +93,7 @@ function loadHistoryJSON(event) {
         console.log(cleanData);
 
         const date = (new Date()).toLocaleDateString('ca-en');
-        // saveTextFile(JSON.stringify(cleanData, null, 1), `Listen History ${date}`, "json");
+        saveTextFile(JSON.stringify(cleanData, null, 1), `Listen History ${date}`, "json");
    }
 }
 
