@@ -1,18 +1,32 @@
-// import {
-//     showCalendarPreviewDialog,
-// } from './dialogs.js';
+import {
+    showInputDialog,
+    showYesNoDialog,
+} from './dialogs.js';
 
 // import {
 //     formatDateToCA,
 // } from './date-utilities.js';
 
-// let history = [];
+import {
+    getTableHeaderRow,
+    getTableDataWithText,
+    getTableDataWithDeleteButton,
+} from './table-utilities.js';
 
-const mainContainer = document.querySelector('.main');
+let history = [];
+
+// const mainContainer = document.querySelector('.main');
+const dataTable = document.querySelector("#data-table");
 
 const loadBtn = document.querySelector('#load-button');
 loadBtn.onchange = (event) => {
     loadHistoryJSON(event);
+}
+
+const saveBtn = document.querySelector('#save-button');
+saveBtn.onclick = () => {
+    const date = (new Date()).toLocaleDateString('ca-en');
+    saveTextFile(JSON.stringify(history, null, 1), `Listen History ${date}`, "json");
 }
 
 function loadHistoryJSON(event) {
@@ -23,15 +37,14 @@ function loadHistoryJSON(event) {
     async function onReaderLoad(event){
         const jsonFileDate = JSON.parse(event.target.result);
 
-        const cleanData = [];
-        const cleanerData = [];
+        history = [];
 
         for (const property of jsonFileDate) {
-            const listened_at = property.listened_at;
-            const track_name = property.track_metadata.track_name;
-            const release_name = property.track_metadata.release_name;
-            const artist_name = property.track_metadata.artist_name;
-            const duration_ms = property.track_metadata.duration_ms;
+            const listened_at = property.listened_at || "Unknown";
+            const track_name = property.track_metadata.track_name || "Unknown";
+            const release_name = property.track_metadata.release_name || "Unknown";
+            const artist_name = property.track_metadata.artist_name || "Unknown";
+            const duration_ms = property.track_metadata.duration_ms || 0;
             const media_player = property.track_metadata.additional_info.media_player || "Unknown";
             const media_player_version = property.track_metadata.additional_info.media_player_version || "Unknown";
 
@@ -58,11 +71,11 @@ function loadHistoryJSON(event) {
                             }
 
             // Add first entry
-            if (cleanData.length === 0) cleanData.push(newEntry);
+            if (history.length === 0) history.push(newEntry);
             
             // Find entry index if it has been added
             let foundIndex = -1;
-            cleanData.forEach((entry, index) => {
+            history.forEach((entry, index) => {
                 if (entry.hash == newEntryHash) {
                     foundIndex = index;
                 }
@@ -70,39 +83,107 @@ function loadHistoryJSON(event) {
 
             // Add entry if it has been yet added
             if (foundIndex == -1) {
-                cleanData.push(newEntry);
+                history.push(newEntry);
             }
             // Added listen time to listen_at array
             else {
-                cleanData[foundIndex].listened_at.push(listened_at);
+                history[foundIndex].listened_at.push(listened_at);
             }
         }
 
         // Remove hash
-        for (const entry of cleanData) delete entry.hash;
+        for (const entry of history) delete entry.hash;
 
         // Add timesPlayed
-        for (const entry of cleanData) entry.timesPlayed = entry.listened_at.length;
+        for (const entry of history) entry.times_played = entry.listened_at.length;
 
         // Add totalPlayTime_ms
-        for (const entry of cleanData) entry.totalPlayTime_ms = entry.listened_at.length * entry.track_metadata.duration_ms;
+        for (const entry of history) entry.total_time_played_ms = entry.listened_at.length * entry.track_metadata.duration_ms;
 
         // Add totalPlayTime
-        for (const entry of cleanData) entry.totalPlayTime = msToTime(entry.totalPlayTime_ms);
+        for (const entry of history) entry.total_time_played = msToTime(entry.total_time_played_ms);
 
-        console.log(cleanData);
+        // console.log(history);
 
-        const date = (new Date()).toLocaleDateString('ca-en');
-        saveTextFile(JSON.stringify(cleanData, null, 1), `Listen History ${date}`, "json");
+        loadTable();
    }
+}
+
+function loadTable() {
+    history.sort((a, b) => {
+        const nameA = String(a.track_name).toUpperCase();
+        const nameB = String(b.track_name).toUpperCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+    });
+
+    dataTable.innerHTML = "";
+    dataTable.appendChild(getTableHeaderRow(["Track", "Artist", "Duration", "Total played", "Delete"]));
+
+    // for (const entry of history) {
+    history.forEach((entry, index) => {
+        const row = document.createElement('tr');
+
+        const trackName = getTableDataWithText(entry.track_metadata.track_name);
+        trackName.onclick = () => {
+            showInputDialog("Change track name?",
+                            entry.track_metadata.track_name,
+                            (newName) => {
+                                entry.track_metadata.track_name = newName;
+                                loadTable();
+                            },
+                            null,
+                            'text',
+                            "New name",
+                            null);
+        }
+        trackName.style.cursor = "pointer";
+
+        const artistName = getTableDataWithText(entry.track_metadata.artist_name);
+        artistName.onclick = () => {
+            showInputDialog("Change artist name?",
+                            entry.track_metadata.artist_name,
+                            (newName) => {
+                                entry.track_metadata.artist_name = newName;
+                                loadTable();
+                            },
+                            null,
+                            'text',
+                            "New name",
+                            null);}
+        artistName.style.cursor = "pointer";
+
+        const duration = getTableDataWithText(msToTime(entry.track_metadata.duration_ms));
+        duration.style.textAlign = "center";
+
+        const totalPlayTime = getTableDataWithText(msToTime(entry.total_time_played_ms));
+        totalPlayTime.style.textAlign = "center";
+
+        const deleteTD = getTableDataWithDeleteButton(
+            async () => {
+                showYesNoDialog(`Delete ${entry.track_metadata.track_name}?`,
+                                () => {
+                                    history.splice(index, 1);
+                                    loadTable();
+                                },
+                                null);
+            }
+        );
+
+        row.append(trackName, artistName, duration, totalPlayTime, deleteTD);
+        dataTable.appendChild(row);
+    });
 }
 
 function msToTime(s) {
     const ms = s % 1000;
     s = (s - ms) / 1000;
-    const secs = s % 60;
+    let secs = s % 60;
+    secs = (secs <= 9) ? `0${secs}` : secs;
     s = (s - secs) / 60;
-    const mins = s % 60;
+    let mins = s % 60;
+    mins = (mins <= 9) ? `0${mins}` : mins;
     const hrs = (s - mins) / 60;
   
     return (hrs ? hrs + ":" : "") + mins + ":" + secs;
